@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# Recursively search for certificates and output information about them in CSV format
+# Set field sep via `export FS=` or via argument `-d` / `--delim`
+
+if [ $# -gt 0 ]; then
+  case $1 in
+    -d|--delim)
+      shift ; FS=$1
+      ;;
+    -d=*|--delim=*)
+      FS=$(echo $1 | cut -d= -f2)
+      ;;
+  esac
+fi
+
+if [ "${FS:-x}" = "x" ]; then
+  FS='|'
+fi
+
+handle_dir() {
+  for file in $(ls); do
+    if [ -d $file ]; then
+      pushd $file &>/dev/null
+      handle_dir
+      popd &>/dev/null
+    elif [ -f $file ]; then
+      handle_file $file
+    fi
+  done
+}
+
+handle_certificate() {
+  local cert=$1
+  local domain=$1
+  local expiration=$(2>/dev/null openssl x509 -in $cert -noout -enddate | cut -d= -f2)
+  local san_hosts=$(2>/dev/null openssl x509 -in $cert -noout -text | grep --after-context=1 'Subject Alternative Name:' | grep 'DNS:' | grep -Eoe '([\-\.a-zA-Z0-9])+\.com')
+
+  # handle wildcard certficicate
+  if echo $cert | grep -Eq 'wildcard'; then
+    host=$(basename $(pwd) | tr '_' '.')
+    echo "WILDCARD${FS}${cert}${FS}${expiration}${FS}${host}"
+
+  # handle san cert
+  elif echo $cert | grep -Eq '^san\.' || 2>/dev/null openssl x509 -in $cert -noout -text | grep --after-context=1 'Subject Alternative Name:' | grep -q 'DNS:'; then
+    echo "SAN${FS}${cert}${FS}${expiration}${FS}$(echo ${san_hosts:-} | tr " " ',')"
+
+  else
+    # get the domain from the cert name
+    for x in .pem .crt .cert _combined; do
+     domain=${domain%${x}}
+    done
+    echo "DOMAIN${FS}${cert}${FS}${expiration}${FS}${domain}"
+  fi
+}
+
+handle_file() {
+  file=$1
+  case $file in
+    *_combined.pem)
+      handle_certificate $file
+      : ;;
+    *.[cC][eE][rR][tT]|*.[cC][rR][tT]|*.[cC][rR][tT].[pP][eE][mM])
+      handle_certificate $file
+      ;;
+    *)
+      : ;; # no-op
+  esac
+}
+
+handle_dir
