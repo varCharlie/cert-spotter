@@ -46,7 +46,7 @@ handle_certificate() {
 
   else
     # get the domain from the cert name
-    for x in .pem .crt .cert _combined; do
+    for x in '.pem' '.crt' '.cert' '-crt' '_crt' '-cert' '_cert' '_combined' '-combined'; do
      domain=${domain%${x}}
     done
     echo "DOMAIN${FS}${cert}${FS}${expiration}${FS}${domain}"
@@ -55,16 +55,10 @@ handle_certificate() {
 
 handle_file() {
   file=$1
-  case $file in
-    *_combined.pem)
-      handle_certificate $file
-      : ;;
-    *.[cC][eE][rR][tT]|*.[cC][rR][tT]|*.[cC][rR][tT].[pP][eE][mM])
-      handle_certificate $file
-      ;;
-    *)
-      : ;; # no-op
-  esac
+  if openssl x509 -in $file &>/dev/null; then
+    handle_certificate $file
+  fi
 }
 
+echo "Type${FS}File${FS}Expiration${FS}Info"
 handle_dir
