@@ -46,6 +46,7 @@ handle_certificate() {
 
   else
     # get the domain from the cert name
+	# this assumes a specific naming convention: e.g. domain-crt-combined.pem domain-crt.cert domain.crt etc
     for x in '.pem' '.crt' '.cert' '-crt' '_crt' '-cert' '_cert' '_combined' '-combined'; do
      domain=${domain%${x}}
     done
